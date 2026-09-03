@@ -42,7 +42,14 @@ export default function Home() {
     if (!goal.trim() || planning) return;
     setPlanning(true); setError("");
     try {
-      const res = await fetch("/api/ai/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: goal.trim() }) });
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Please sign in again.");
+      const res = await fetch("/api/ai/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ goal: goal.trim() }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "AI planning failed.");
       setGoal("");
