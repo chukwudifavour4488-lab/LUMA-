@@ -2,57 +2,34 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "../../lib/supabase";
+
+const STORAGE_KEY = "luma-simple-state";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  async function submit(e: FormEvent) {
+  function enter(e: FormEvent) {
     e.preventDefault();
-    setLoading(true); setError(""); setNotice("");
-    try {
-      const supabase = getSupabaseClient();
-      if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { display_name: name.trim() } } });
-        if (error) throw error;
-        if (data.session) router.replace("/");
-        else setNotice("Account created. Check your email to confirm your account, then sign in.");
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
-        if (!data.session) throw new Error("Sign in did not create a session. Please try again.");
-        router.replace("/");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally { setLoading(false); }
+    const displayName = name.trim() || "Builder";
+    let saved: { goals?: unknown[] } = {};
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch {}
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, userName: displayName }));
+    router.replace("/");
   }
 
   return (
     <main className="authPage">
       <div className="authCard">
         <div className="brand"><span className="brandMark">L</span><span>LUMA</span></div>
-        <span className="eyebrow">{mode === "login" ? "WELCOME BACK" : "START YOUR JOURNEY"}</span>
-        <h1>{mode === "login" ? "Make today matter." : "Turn your goal into momentum."}</h1>
-        <p className="authIntro">LUMA helps you turn important goals into practical actions and measurable progress.</p>
-        <form onSubmit={submit}>
-          {mode === "signup" && <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" autoComplete="name" required />}
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" autoComplete="email" required />
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={6} required />
-          {error && <div className="authError">{error}</div>}
-          {notice && <div className="planReady">✓ {notice}</div>}
-          <button className="authButton" disabled={loading}>{loading ? "Please wait…" : mode === "login" ? "Sign in →" : "Create my LUMA account →"}</button>
+        <span className="eyebrow">WELCOME</span>
+        <h1>Make today matter.</h1>
+        <p className="authIntro">Enter your name and start turning one important goal into real progress.</p>
+        <form onSubmit={enter}>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" autoFocus />
+          <button className="authButton">Enter LUMA →</button>
         </form>
-        <button className="switchAuth" onClick={()=>{setMode(mode === "login" ? "signup" : "login");setError("");setNotice("")}}>
-          {mode === "login" ? "New to LUMA? Create an account" : "Already have an account? Sign in"}
-        </button>
+        <p className="muted" style={{ marginTop: 18 }}>Simple mode · no password · no database required.</p>
       </div>
     </main>
   );
