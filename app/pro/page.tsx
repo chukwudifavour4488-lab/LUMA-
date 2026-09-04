@@ -2,31 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "../../lib/supabase";
 
 export default function ProPage() {
   const router = useRouter();
-  const [status, setStatus] = useState("Checking LUMA Pro…");
+  const [status, setStatus] = useState("Loading LUMA Pro…");
   const [busy, setBusy] = useState(false);
   const [configured, setConfigured] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     async function setup() {
-      const supabase = getSupabaseClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.replace("/login"); return; }
       const key = process.env.NEXT_PUBLIC_REVENUECAT_WEB_API_KEY;
       if (!key) {
-        if (mounted) { setConfigured(false); setStatus("RevenueCat checkout is ready to connect."); }
+        if (mounted) setStatus("LUMA Pro demo mode — add the RevenueCat Web public key to enable checkout.");
         return;
       }
       try {
         const { Purchases } = await import("@revenuecat/purchases-js");
-        Purchases.configure({ apiKey: key, appUserId: user.id });
-        const customer = await Purchases.getSharedInstance().getCustomerInfo();
-        const active = Object.keys(customer.entitlements.active || {}).some((id) => id.toLowerCase() === "pro");
-        if (mounted) { setConfigured(true); setStatus(active ? "LUMA Pro is active." : "Choose Pro to unlock your momentum layer."); }
+        let appUserId = localStorage.getItem("luma-rc-user");
+        if (!appUserId) { appUserId = Purchases.generateRevenueCatAnonymousAppUserId(); localStorage.setItem("luma-rc-user", appUserId); }
+        Purchases.configure({ apiKey: key, appUserId });
+        if (mounted) { setConfigured(true); setStatus("Choose Pro to unlock your momentum layer."); }
+        try {
+          const customer = await Purchases.getSharedInstance().getCustomerInfo();
+          const active = Object.keys(customer.entitlements.active || {}).some((id) => id.toLowerCase() === "pro");
+          if (mounted && active) setStatus("LUMA Pro is active.");
+        } catch {}
       } catch (error) {
         console.error("RevenueCat setup error", error);
         if (mounted) setStatus("RevenueCat is connected in code, but the web offering needs configuration.");
@@ -34,21 +35,18 @@ export default function ProPage() {
     }
     setup();
     return () => { mounted = false; };
-  }, [router]);
+  }, []);
 
   async function startPurchase() {
     setBusy(true);
     try {
-      const key = process.env.NEXT_PUBLIC_REVENUECAT_WEB_API_KEY;
-      if (!key) { setStatus("Add NEXT_PUBLIC_REVENUECAT_WEB_API_KEY in Vercel to enable checkout."); return; }
       const { Purchases } = await import("@revenuecat/purchases-js");
-      const purchases = Purchases.getSharedInstance();
-      const offerings = await purchases.getOfferings();
+      const offerings = await Purchases.getSharedInstance().getOfferings();
       const pkg = offerings.current?.availablePackages?.[0];
-      if (!pkg) { setStatus("No Pro package is configured yet. Create a RevenueCat offering and product, then try again."); return; }
-      const result = await purchases.purchase({ rcPackage: pkg });
+      if (!pkg) { setStatus("No Pro package is configured yet. Check the RevenueCat offering."); return; }
+      const result = await Purchases.getSharedInstance().purchase({ rcPackage: pkg });
       const active = Object.keys(result.customerInfo.entitlements.active || {}).some((id) => id.toLowerCase() === "pro");
-      setStatus(active ? "Welcome to LUMA Pro — your premium path is unlocked." : "Purchase completed. Finish the Pro entitlement setup in RevenueCat.");
+      setStatus(active ? "Welcome to LUMA Pro — unlocked." : "Purchase completed. Check the Pro entitlement in RevenueCat.");
     } catch (error) {
       console.error("RevenueCat purchase error", error);
       setStatus("Checkout was not completed. You can try again.");
@@ -59,7 +57,7 @@ export default function ProPage() {
     <main className="sectionView" style={{ maxWidth: 1000, margin: "0 auto", padding: "70px 24px" }}>
       <span className="eyebrow">LUMA · PRO</span>
       <h1 style={{ fontSize: "clamp(48px,8vw,88px)", letterSpacing: "-.06em", lineHeight: .94 }}>Turn intentions<br/><em>into momentum.</em></h1>
-      <p style={{ maxWidth: 680, color: "#756e66", lineHeight: 1.7 }}>LUMA Pro gives serious builders a deeper coaching layer: smarter paths, richer progress history, priority opportunities and a focused accountability experience.</p>
+      <p style={{ maxWidth: 680, color: "#756e66", lineHeight: 1.7 }}>LUMA Pro gives serious builders a deeper coaching layer: richer progress history, priority opportunities and a focused accountability experience.</p>
       <div className="goalCards" style={{ marginTop: 30 }}>
         {[["01","Deeper paths","More structured goal plans and next-best actions."],["02","Progress history","See the evidence behind your momentum."],["03","Priority opportunities","Surface challenges that match where you're going."]].map(([n,t,d]) => <article className="panel" key={n}><span className="eyebrow">{n}</span><h2>{t}</h2><p>{d}</p></article>)}
       </div>
